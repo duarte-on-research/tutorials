@@ -3,7 +3,7 @@
 # Print script commands and exit on errors.
 set -xe
 
-#Src 
+#Src
 BMV2_COMMIT="b447ac4c0cfd83e5e72a3cc6120251c1e91128ab"  # August 10, 2019
 PI_COMMIT="41358da0ff32c94fa13179b9cee0ab597c9ccbcc"    # August 10, 2019
 P4C_COMMIT="69e132d0d663e3408d740aaf8ed534ecefc88810"   # August 10, 2019
@@ -14,59 +14,94 @@ GRPC_COMMIT="v1.3.2"
 NUM_CORES=`grep -c ^processor /proc/cpuinfo`
 
 # --- Mininet --- #
-git clone git://github.com/mininet/mininet mininet
+if [[ ! -d mininet ]]
+then
+  git clone git://github.com/mininet/mininet mininet
+fi
+
 sudo ./mininet/util/install.sh -nwv
 
 # --- Protobuf --- #
-git clone https://github.com/google/protobuf.git
+if [[ ! -d protobuf ]]
+then
+  git clone https://github.com/google/protobuf.git
+fi
+
 cd protobuf
+
 git checkout ${PROTOBUF_COMMIT}
+
 export CFLAGS="-Os"
 export CXXFLAGS="-Os"
 export LDFLAGS="-Wl,-s"
+
 ./autogen.sh
 ./configure --prefix=/usr
+
 make -j${NUM_CORES}
 sudo make install
 sudo ldconfig
+
 unset CFLAGS CXXFLAGS LDFLAGS
 # Force install python module
+
 cd python
 sudo python setup.py install
 cd ../..
 
 # --- gRPC --- #
-git clone https://github.com/grpc/grpc.git
+
+if [[ ! -d grpc ]]
+then
+  git clone https://github.com/grpc/grpc.git
+fi
+
 cd grpc
+
 git checkout ${GRPC_COMMIT}
 git submodule update --init --recursive
+
 export LDFLAGS="-Wl,-s"
+
 make -j${NUM_CORES}
 sudo make install
 sudo ldconfig
+
 unset LDFLAGS
+
 cd ..
 # Install gRPC Python Package
 sudo pip install grpcio
 
 # --- BMv2 deps (needed by PI) --- #
-git clone https://github.com/p4lang/behavioral-model.git
+if [[ ! -d behavioral-model ]]
+then
+  git clone https://github.com/p4lang/behavioral-model.git
+fi
+
 cd behavioral-model
 git checkout ${BMV2_COMMIT}
+
 # From bmv2's install_deps.sh, we can skip apt-get install.
 # Nanomsg is required by p4runtime, p4runtime is needed by BMv2...
 tmpdir=`mktemp -d -p .`
 cd ${tmpdir}
+
 bash ../travis/install-thrift.sh
 bash ../travis/install-nanomsg.sh
 sudo ldconfig
 bash ../travis/install-nnpy.sh
+
 cd ..
 sudo rm -rf $tmpdir
 cd ..
 
 # --- PI/P4Runtime --- #
-git clone https://github.com/p4lang/PI.git
+if [[ ! -d PI ]]
+then
+  git clone https://github.com/p4lang/PI.git
+fi
+
 cd PI
 git checkout ${PI_COMMIT}
 git submodule update --init --recursive
@@ -79,6 +114,7 @@ cd ..
 
 # --- Bmv2 --- #
 cd behavioral-model
+export CXXFLAGS="-Os -g"
 ./autogen.sh
 ./configure --enable-debugger --with-pi
 make -j${NUM_CORES}
@@ -91,11 +127,16 @@ cd targets/simple_switch_grpc
 make -j${NUM_CORES}
 sudo make install
 sudo ldconfig
+unset CXXFLAGS
 cd ../../..
 
 
 # --- P4C --- #
-git clone https://github.com/p4lang/p4c
+if [[ ! -d p4c ]]
+then
+  git clone https://github.com/p4lang/p4c
+fi
+
 cd p4c
 git checkout ${P4C_COMMIT}
 git submodule update --init --recursive
@@ -114,25 +155,30 @@ cd ../..
 
 # --- Tutorials --- #
 sudo pip install crcmod
-git clone https://github.com/p4lang/tutorials
-sudo mv tutorials /home/p4
+
+if [[ ! -d tutorials ]]
+then
+  git clone https://github.com/p4lang/tutorials
+  sudo mv tutorials /home/p4
+fi
+
 sudo chown -R p4:p4 /home/p4/tutorials
 
 # --- Emacs --- #
 sudo cp p4_16-mode.el /usr/share/emacs/site-lisp/
-sudo mkdir /home/p4/.emacs.d/
+sudo mkdir -p /home/p4/.emacs.d/
 echo "(autoload 'p4_16-mode' \"p4_16-mode.el\" \"P4 Syntax.\" t)" > init.el
 echo "(add-to-list 'auto-mode-alist '(\"\\.p4\\'\" . p4_16-mode))" | tee -a init.el
 sudo mv init.el /home/p4/.emacs.d/
-sudo ln -s /usr/share/emacs/site-lisp/p4_16-mode.el /home/p4/.emacs.d/p4_16-mode.el
+sudo ln -fs /usr/share/emacs/site-lisp/p4_16-mode.el /home/p4/.emacs.d/p4_16-mode.el
 sudo chown -R p4:p4 /home/p4/.emacs.d/
 
 # --- Vim --- #
-cd ~  
-mkdir .vim
+cd ~
+mkdir -p .vim
 cd .vim
-mkdir ftdetect
-mkdir syntax
+mkdir -p ftdetect
+mkdir -p syntax
 echo "au BufRead,BufNewFile *.p4      set filetype=p4" >> ftdetect/p4.vim
 echo "set bg=dark" >> ~/.vimrc
 sudo mv ~/.vimrc /home/p4/.vimrc
